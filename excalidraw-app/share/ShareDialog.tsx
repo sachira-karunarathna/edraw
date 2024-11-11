@@ -107,7 +107,9 @@ const ActiveRoomDialog = ({
       </h3>
       <TextField
         defaultValue={collabAPI.getUsername()}
+        // defaultValue={user?.user_metadata.name}
         placeholder="Your name"
+        // placeholder={user?.user_metadata.name ?? "Your name"}
         label="Your name"
         onChange={collabAPI.setUsername}
         onKeyDown={(event) => event.key === KEYS.ENTER && handleClose()}

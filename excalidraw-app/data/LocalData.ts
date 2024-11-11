@@ -42,6 +42,8 @@ import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS } from "../app_constants";
 import { FileManager } from "./FileManager";
 import { Locker } from "./Locker";
 import { updateBrowserStateVersion } from "./tabSync";
+import { appJotaiStore } from "../app-jotai";
+import { projectAtom } from "../store/project";
 
 const filesStore = createStore("files-db", "files-store");
 
@@ -70,6 +72,8 @@ const saveDataStateToLocalStorage = (
   appState: AppState,
 ) => {
   try {
+    const currentProjectData = appJotaiStore.get(projectAtom)
+    
     const _appState = clearAppStateForLocalStorage(appState);
 
     if (
@@ -80,11 +84,11 @@ const saveDataStateToLocalStorage = (
     }
 
     localStorage.setItem(
-      STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS,
+      `${STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS}-${currentProjectData?.id}`,
       JSON.stringify(clearElementsForLocalStorage(elements)),
     );
     localStorage.setItem(
-      STORAGE_KEYS.LOCAL_STORAGE_APP_STATE,
+      `${STORAGE_KEYS.LOCAL_STORAGE_APP_STATE}-${currentProjectData?.id}`,
       JSON.stringify(_appState),
     );
     updateBrowserStateVersion(STORAGE_KEYS.VERSION_DATA_STATE);

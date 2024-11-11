@@ -205,7 +205,7 @@ const areEqual = (prevProps: ExcalidrawProps, nextProps: ExcalidrawProps) => {
 };
 
 export const Excalidraw = React.memo(ExcalidrawBase, areEqual);
-Excalidraw.displayName = "Excalidraw";
+Excalidraw.displayName = "eDraw";
 
 export {
   getSceneVersion,

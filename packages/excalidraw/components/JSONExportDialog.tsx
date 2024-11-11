@@ -1,24 +1,50 @@
 import React from "react";
 import type { NonDeletedExcalidrawElement } from "../element/types";
 import { t } from "../i18n";
-
 import type { ExportOpts, BinaryFiles, UIAppState } from "../types";
 import { Dialog } from "./Dialog";
 import { exportToFileIcon, LinkIcon } from "./icons";
 import { ToolButton } from "./ToolButton";
 import { actionSaveFileToDisk } from "../actions/actionExport";
 import { Card } from "./Card";
-
 import "./ExportDialog.scss";
 import { nativeFileSystemSupported } from "../data/filesystem";
 import { trackEvent } from "../analytics";
 import type { ActionManager } from "../actions/manager";
 import { getFrame } from "../utils";
+import { CloudIcon } from "lucide-react";
 
-export type ExportCB = (
+import { supabase } from "../../../excalidraw-app/config/supabase";
+import { appJotaiStore } from "../../../excalidraw-app/app-jotai";
+import { projectAtom } from "../../../excalidraw-app/store/project";
+
+const actionUpdateToCloud = async (
   elements: readonly NonDeletedExcalidrawElement[],
-  scale?: number,
-) => void;
+  appState: UIAppState,
+  files: BinaryFiles,
+  canvas: HTMLCanvasElement
+) => {
+  try {
+    let currentProjectData = appJotaiStore.get(projectAtom)
+
+    const { data, error } = await supabase
+      .from('projects')
+      .update({
+        data: { elements, appState, files },
+        thumbnail: canvas.toDataURL("image/png")
+      })
+      .eq('id', currentProjectData?.id)
+      .select()
+    if (error) {
+      console.error(error.message)
+    } else {
+      return true;
+    }
+  } catch (error) {
+    console.error('Failed to save to cloud:', error);
+    throw new Error('Failed to save to cloud storage');
+  }
+};
 
 const JSONExportModal = ({
   elements,
@@ -64,6 +90,33 @@ const JSONExportModal = ({
             />
           </Card>
         )}
+
+        <Card color="blue">
+          <div className="Card-icon">
+            <CloudIcon size={24} />
+          </div>
+          <h2>{"Save to Cloud"}</h2>
+          <div className="Card-details">
+            {"Save your drawing to cloud storage for easy access anywhere"}
+          </div>
+          <ToolButton
+            className="Card-button"
+            type="button"
+            title={"Save to Cloud"}
+            aria-label={"Save to Cloud"}
+            showAriaLabel={true}
+            onClick={async () => {
+              try {
+                trackEvent("export", "cloud", `ui (${getFrame()})`);
+                await actionUpdateToCloud(elements, appState, files, canvas);
+                setAppState({ openDialog: null });
+                setAppState({ toast: { message: "Saved to cloud successfully!" } });
+              } catch (error: any) {
+                setAppState({ errorMessage: error.message });
+              }
+            }}
+          />
+        </Card>
         {onExportToBackend && (
           <Card color="pink">
             <div className="Card-icon">{LinkIcon}</div>

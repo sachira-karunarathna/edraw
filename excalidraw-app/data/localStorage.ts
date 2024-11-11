@@ -6,6 +6,8 @@ import {
 } from "../../packages/excalidraw/appState";
 import { clearElementsForLocalStorage } from "../../packages/excalidraw/element";
 import { STORAGE_KEYS } from "../app_constants";
+import { appJotaiStore } from "../app-jotai";
+import { projectAtom } from "../store/project";
 
 export const saveUsernameToLocalStorage = (username: string) => {
   try {
@@ -38,8 +40,9 @@ export const importFromLocalStorage = () => {
   let savedState = null;
 
   try {
-    savedElements = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS);
-    savedState = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_APP_STATE);
+    const currentProjectData = appJotaiStore.get(projectAtom)
+    savedElements = localStorage.getItem(`${STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS}-${currentProjectData?.id}`);
+    savedState = localStorage.getItem(`${STORAGE_KEYS.LOCAL_STORAGE_APP_STATE}-${currentProjectData?.id}`);
   } catch (error: any) {
     // Unable to access localStorage
     console.error(error);
@@ -74,7 +77,8 @@ export const importFromLocalStorage = () => {
 
 export const getElementsStorageSize = () => {
   try {
-    const elements = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS);
+    const currentProjectData = appJotaiStore.get(projectAtom)
+    const elements = localStorage.getItem(`${STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS}-${currentProjectData?.id}`);
     const elementsSize = elements?.length || 0;
     return elementsSize;
   } catch (error: any) {
@@ -85,7 +89,8 @@ export const getElementsStorageSize = () => {
 
 export const getTotalStorageSize = () => {
   try {
-    const appState = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_APP_STATE);
+    const currentProjectData = appJotaiStore.get(projectAtom)
+    const appState = localStorage.getItem(`${STORAGE_KEYS.LOCAL_STORAGE_APP_STATE}-${currentProjectData?.id}`);
     const collab = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_COLLAB);
 
     const appStateSize = appState?.length || 0;

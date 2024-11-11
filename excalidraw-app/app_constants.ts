@@ -44,7 +44,12 @@ export const STORAGE_KEYS = {
   VERSION_DATA_STATE: "version-dataState",
   VERSION_FILES: "version-files",
 
+  LOCAL_STORAGE_USER: "user-data",
+  LOCAL_STORAGE_SESSION: "user-session-data",
+
   IDB_LIBRARY: "excalidraw-library",
+
+  PROJECT: "project",
 
   // do not use apart from migrations
   __LEGACY_LOCAL_STORAGE_LIBRARY: "excalidraw-library",

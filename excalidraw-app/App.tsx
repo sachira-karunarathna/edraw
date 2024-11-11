@@ -127,6 +127,10 @@ import DebugCanvas, {
 } from "./components/DebugCanvas";
 import { AIComponents } from "./components/AI";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
+import { supabase } from "./config/supabase";
+import { useParams } from "react-router-dom";
+import { projectAtom } from "./store/project";
+import { saveDataToCloudStorage } from "./data/SupabaseData";
 
 polyfill();
 
@@ -313,11 +317,11 @@ const initializeScene = async (opts: {
   } else if (scene) {
     return isExternalScene && jsonBackendMatch
       ? {
-          scene,
-          isExternalScene,
-          id: jsonBackendMatch[1],
-          key: jsonBackendMatch[2],
-        }
+        scene,
+        isExternalScene,
+        id: jsonBackendMatch[1],
+        key: jsonBackendMatch[2],
+      }
       : { scene, isExternalScene: false };
   }
   return { scene: null, isExternalScene: false };
@@ -334,6 +338,8 @@ const ExcalidrawWrapper = () => {
 
   // initial state
   // ---------------------------------------------------------------------------
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const initialStatePromiseRef = useRef<{
     promise: ResolvablePromise<ExcalidrawInitialDataState | null>;
@@ -619,6 +625,13 @@ const ExcalidrawWrapper = () => {
     // this check is redundant, but since this is a hot path, it's best
     // not to evaludate the nested expression every time
     if (!LocalData.isSavePaused()) {
+      /*
+        Get the canvas from app context and use that to 
+        save the thumbnail of the project to db
+      */
+      const canvas = containerRef.current?.querySelector('canvas') ?? new HTMLCanvasElement;
+      saveDataToCloudStorage(elements, appState, files, canvas)
+
       LocalData.save(elements, appState, files, () => {
         if (excalidrawAPI) {
           let didChange = false;
@@ -750,8 +763,7 @@ const ExcalidrawWrapper = () => {
     keywords: ["plus", "cloud", "server"],
     perform: () => {
       window.open(
-        `${
-          import.meta.env.VITE_APP_PLUS_LP
+        `${import.meta.env.VITE_APP_PLUS_LP
         }/plus?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
         "_blank",
       );
@@ -773,8 +785,7 @@ const ExcalidrawWrapper = () => {
     ],
     perform: () => {
       window.open(
-        `${
-          import.meta.env.VITE_APP_PLUS_APP
+        `${import.meta.env.VITE_APP_PLUS_APP
         }?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
         "_blank",
       );
@@ -787,6 +798,7 @@ const ExcalidrawWrapper = () => {
       className={clsx("excalidraw-app", {
         "is-collaborating": isCollaborating,
       })}
+      ref={containerRef}
     >
       <Excalidraw
         excalidrawAPI={excalidrawRefCallback}
@@ -801,27 +813,27 @@ const ExcalidrawWrapper = () => {
               onExportToBackend,
               renderCustomUI: excalidrawAPI
                 ? (elements, appState, files) => {
-                    return (
-                      <ExportToExcalidrawPlus
-                        elements={elements}
-                        appState={appState}
-                        files={files}
-                        name={excalidrawAPI.getName()}
-                        onError={(error) => {
-                          excalidrawAPI?.updateScene({
-                            appState: {
-                              errorMessage: error.message,
-                            },
-                          });
-                        }}
-                        onSuccess={() => {
-                          excalidrawAPI.updateScene({
-                            appState: { openDialog: null },
-                          });
-                        }}
-                      />
-                    );
-                  }
+                  return (
+                    <ExportToExcalidrawPlus
+                      elements={elements}
+                      appState={appState}
+                      files={files}
+                      name={excalidrawAPI.getName()}
+                      onError={(error) => {
+                        excalidrawAPI?.updateScene({
+                          appState: {
+                            errorMessage: error.message,
+                          },
+                        });
+                      }}
+                      onSuccess={() => {
+                        excalidrawAPI.updateScene({
+                          appState: { openDialog: null },
+                        });
+                      }}
+                    />
+                  );
+                }
                 : undefined,
             },
           },
@@ -1064,11 +1076,11 @@ const ExcalidrawWrapper = () => {
             },
             ...(isExcalidrawPlusSignedUser
               ? [
-                  {
-                    ...ExcalidrawPlusAppCommand,
-                    label: "Sign in / Go to Excalidraw+",
-                  },
-                ]
+                {
+                  ...ExcalidrawPlusAppCommand,
+                  label: "Sign in / Go to Excalidraw+",
+                },
+              ]
               : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
 
             {
@@ -1132,10 +1144,73 @@ const ExcalidrawApp = () => {
     return <ExcalidrawPlusIframeExport />;
   }
 
+  const { projectId } = useParams()
+
+  const [currentProjectData, setCurrentProjectData] = useAtom(projectAtom)
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  const getProjectData = async (id: number) => {
+    try {
+      return await supabase
+        .from('projects')
+        .select("*")
+        .eq('id', id)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProjectData = async (projectId: string) => {
+      if (projectId) {
+        try {
+          getProjectData(Number(projectId)).then((data) => {
+            setCurrentProjectData(data?.data ? data.data[0] : null)
+            /*
+              This is to use the project atom value inside the LocalData
+            */
+            appJotaiStore.set(projectAtom, data?.data ? data.data[0] : null)
+
+            let currentProject = appJotaiStore.get(projectAtom)
+
+            localStorage.setItem(`${STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS}-${currentProject?.id}`, JSON.stringify(currentProject?.data.elements))
+            localStorage.setItem(`${STORAGE_KEYS.LOCAL_STORAGE_APP_STATE}-${currentProject?.id}`, JSON.stringify(currentProject?.data.appState))
+            
+            setIsInitialized(true)
+          }).catch((err) => {
+            console.error(err.message)
+          })
+        } catch (err) {
+          console.error("Error fetching project data:", err);
+        }
+      } else {
+        return;
+      }
+    };
+
+    if (projectId && !isInitialized) {
+      fetchProjectData(projectId);
+    }
+
+    if (!projectId) {
+      setIsInitialized(true);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+
+  }, [])
+
   return (
     <TopErrorBoundary>
       <Provider unstable_createStore={() => appJotaiStore}>
-        <ExcalidrawWrapper />
+        {isInitialized ? (
+          <ExcalidrawWrapper />
+        ) : (
+          <div>Loading...</div>
+        )}
       </Provider>
     </TopErrorBoundary>
   );
